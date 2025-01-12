@@ -20,6 +20,7 @@
             "outputPath": "dist/ray-caster-angular",
             "index": "src/index.html",
             "browser": "src/main.ts",
+            "baseHref": "/ray-caster-angular/",
             "polyfills": [
               "zone.js"
             ],
