@@ -74,7 +74,7 @@ export class RenderService
           side = 1;
         }
 
-        if ( WORLD_MAP[ mapPosition.x ][ mapPosition.y ] > 0 ) hit = true;
+        if ( WORLD_MAP[ mapPosition.y ][ mapPosition.x ] > 0 ) hit = true;
       }
 
       perpendicularWallDistance = side === 0
@@ -134,12 +134,4 @@ export class RenderService
     }
   }
 
-  updateFPS ( renderingSurface: RenderingSurface, fps: number ): void
-  {
-    if ( renderingSurface.context )
-    {
-      renderingSurface.context.fillStyle = "#FFFF00";
-      renderingSurface.context.fillText( `FPS: ${ Math.round( fps ) }`, 10, 20 );
-    }
-  }
 }

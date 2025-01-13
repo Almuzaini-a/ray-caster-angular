@@ -1,12 +1,66 @@
-<div class="demo-container">
-    <div class="demo-header">
+<div class="demo-container" @fadeIn>
+    <div class="demo-header" @fadeIn>
         <h1>RAYCASTER ANGULAR DEMO</h1>
         <p>A modern take on classic rendering technique</p>
     </div>
 
-    <canvas #renderingCanvas></canvas>
+    <div class="render-sections" @fadeIn>
+        <div class="render-section">
+            <div class="fps-counter" [class.low-fps]="displayFps < 30">FPS: {{ displayFps }}</div>
+            <canvas #renderingCanvas></canvas>
+        </div>
 
-    <div class="controls">
-        <p>Use <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> to move</p>
+        <div class="render-section">
+            <div class="view-label">2D Map View</div>
+            <canvas #mapCanvas></canvas>
+        </div>
+    </div>
+
+
+
+    <div class="controls" @fadeIn>
+
+        <div class="controls-wrapper">
+            <h3>Movement Controls</h3>
+            <div class="control-group">
+                <div class="key-layout">
+                    <div class="key-row">
+                        <kbd>W</kbd>
+                    </div>
+                    <div class="key-row">
+                        <kbd>A</kbd>
+                        <kbd>S</kbd>
+                        <kbd>D</kbd>
+                    </div>
+                </div>
+
+                <div class="divider">OR</div>
+
+                <div class="key-layout">
+                    <div class="key-row">
+                        <kbd>↑</kbd>
+                    </div>
+                    <div class="key-row">
+                        <kbd>←</kbd>
+                        <kbd>↓</kbd>
+                        <kbd>→</kbd>
+                    </div>
+                </div>
+            </div>
+
+
+            <h3>Field of View</h3>
+            <div class="control-group">
+                <div class="key-layout">
+                    <div class="key-row">
+                        <kbd>Q</kbd>
+                        <span class="key-label">decrease</span>
+                        <kbd>E</kbd>
+                        <span class="key-label">increase</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
