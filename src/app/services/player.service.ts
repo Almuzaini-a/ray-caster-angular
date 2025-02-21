@@ -1,7 +1,24 @@
 import { Injectable } from '@angular/core';
 import { Player } from '../interfaces/player.interface';
 import { Vector } from '../interfaces/vector.interface';
-import { WORLD_MAP } from '../constants/world-map.constant';
+import { WorldMapService } from './world-map.service';
+
+// Constants for player movement
+const MOVEMENT_SPEED_MULTIPLIER = 5.0;
+const ROTATION_SPEED_MULTIPLIER = 3.0;
+const FOV_CHANGE_RATE = 0.01;
+const MIN_FOV = 0.30;
+const MAX_FOV = 0.90;
+
+// Input key mapping
+const MOVEMENT_KEYS = {
+  FORWARD: [ 'w', 'ArrowUp' ],
+  BACKWARD: [ 's', 'ArrowDown' ],
+  ROTATE_LEFT: [ 'a', 'ArrowLeft' ],
+  ROTATE_RIGHT: [ 'd', 'ArrowRight' ],
+  INCREASE_FOV: [ 'e' ],
+  DECREASE_FOV: [ 'q' ]
+};
 
 @Injectable( {
   providedIn: 'root'
@@ -9,107 +26,173 @@ import { WORLD_MAP } from '../constants/world-map.constant';
 export class PlayerService
 {
 
+  constructor ( private worldMapService: WorldMapService ) { }
+
+  get worldMap ()
+  {
+    return this.worldMapService.getMap();
+  }
+
   private keys: { [ key: string ]: boolean; } = {};
 
+  /**
+   * Handle key down events
+   */
   handleKeyDown ( event: KeyboardEvent ): void
   {
-    const normalizedKey: string = this.normalizeKey( event.key );
+    const normalizedKey = this.normalizeKey( event.key );
     this.keys[ normalizedKey ] = true;
   }
 
+  /**
+   * Handle key up events
+   */
   handleKeyUp ( event: KeyboardEvent ): void
   {
-    const normalizedKey: string = this.normalizeKey( event.key );
+    const normalizedKey = this.normalizeKey( event.key );
     this.keys[ normalizedKey ] = false;
   }
 
+  /**
+   * Normalize key input (lowercase for letters)
+   */
   private normalizeKey ( key: string ): string
   {
     return /^[A-Za-z]$/.test( key ) ? key.toLowerCase() : key;
   }
 
-  rotate ( player: Player, angle: number ): void
+  /**
+   * Check if any key in the provided array is currently pressed
+   */
+  private isAnyKeyPressed ( keyArray: string[] ): boolean
   {
-    const oldDirectionX: number = player.direction.x;
-    player.direction.x =
-      player.direction.x * Math.cos( angle ) - player.direction.y * Math.sin( angle );
-    player.direction.y =
-      oldDirectionX * Math.sin( angle ) + player.direction.y * Math.cos( angle );
-
-    const oldPlaneX: number = player.plane.x;
-    player.plane.x =
-      player.plane.x * Math.cos( angle ) - player.plane.y * Math.sin( angle );
-    player.plane.y =
-      oldPlaneX * Math.sin( angle ) + player.plane.y * Math.cos( angle );
-  };
-
-  handleMovement ( player: Player, frameTime: number ): void
-  {
-    const moveSpeed: number = frameTime * 5.0;
-    const rotSpeed: number = frameTime * 3.0;
-
-    if ( this.keys[ 'w' ] || this.keys[ 'ArrowUp' ] )
-    {
-      const newVector: Vector = {
-        x: player.position.x + player.direction.x * moveSpeed,
-        y: player.position.y + player.direction.y * moveSpeed
-      };
-      if ( WORLD_MAP[ Math.floor( player.position.y ) ][ Math.floor( newVector.x ) ] === 0 )
-      {
-        player.position.x = newVector.x;
-      }
-      if ( WORLD_MAP[ Math.floor( newVector.y ) ][ Math.floor( player.position.x ) ] === 0 )
-      {
-        player.position.y = newVector.y;
-      }
-    }
-
-    if ( this.keys[ 's' ] || this.keys[ 'ArrowDown' ] )
-    {
-      const newVector: Vector = {
-        x: player.position.x - player.direction.x * moveSpeed,
-        y: player.position.y - player.direction.y * moveSpeed
-      };
-      if ( WORLD_MAP[ Math.floor( player.position.y ) ][ Math.floor( newVector.x ) ] === 0 )
-      {
-        player.position.x = newVector.x;
-      }
-      if ( WORLD_MAP[ Math.floor( newVector.y ) ][ Math.floor( player.position.x ) ] === 0 )
-      {
-        player.position.y = newVector.y;
-      }
-    }
-
-    if ( this.keys[ 'a' ] || this.keys[ 'ArrowLeft' ] ) this.rotate( player, rotSpeed );
-    if ( this.keys[ 'd' ] || this.keys[ 'ArrowRight' ] ) this.rotate( player, -rotSpeed );
+    return keyArray.some( key => this.keys[ key ] );
   }
 
-  handleFieldOfView ( player: Player ): void
+  /**
+   * Main method to handle player movement based on key input
+   */
+  handleMovement ( player: Player, frameTime: number ): void
   {
-    const FOV_CHANGE_RATE = 0.01;
-    const MIN_FOV = 0.30;
-    const MAX_FOV = 0.90;
+    const moveSpeed = frameTime * MOVEMENT_SPEED_MULTIPLIER;
+    const rotSpeed = frameTime * ROTATION_SPEED_MULTIPLIER;
 
-    if ( this.keys[ 'e' ] )
+    // Handle forward/backward movement
+    if ( this.isAnyKeyPressed( MOVEMENT_KEYS.FORWARD ) )
     {
-      if ( player.plane.y < MAX_FOV )
-      {
-        const newFOV: number = Math.min( player.plane.y + FOV_CHANGE_RATE, MAX_FOV );
-        const ratio: number = Math.abs( player.plane.x / player.plane.y );
-        player.plane.y = newFOV;
-        player.plane.x = newFOV * ratio * Math.sign( player.plane.x );
-      }
+      this.movePlayer( player, moveSpeed );
     }
 
-    if ( this.keys[ 'q' ] )
+    if ( this.isAnyKeyPressed( MOVEMENT_KEYS.BACKWARD ) )
     {
-      if ( player.plane.y > MIN_FOV )
-      {
-        const newFOV: number = Math.max( player.plane.y - FOV_CHANGE_RATE, MIN_FOV );
-        const ratio: number = Math.abs( player.plane.x / player.plane.y );
-        player.plane.y = newFOV;
-        player.plane.x = newFOV * ratio * Math.sign( player.plane.x );
-      }
+      this.movePlayer( player, -moveSpeed );
+    }
+
+    // Handle rotation
+    if ( this.isAnyKeyPressed( MOVEMENT_KEYS.ROTATE_LEFT ) )
+    {
+      this.rotate( player, rotSpeed );
+    }
+
+    if ( this.isAnyKeyPressed( MOVEMENT_KEYS.ROTATE_RIGHT ) )
+    {
+      this.rotate( player, -rotSpeed );
+    }
+  }
+
+  /**
+   * Move player in the direction they're facing
+   * @param player Player object
+   * @param speed Movement speed (negative for backward)
+   */
+  private movePlayer ( player: Player, speed: number ): void
+  {
+    const newPosition: Vector = {
+      x: player.position.x + player.direction.x * speed,
+      y: player.position.y + player.direction.y * speed
+    };
+
+    // Handle collision detection - try moving on x-axis
+    if ( this.isValidPosition( player.position.y, newPosition.x ) )
+    {
+      player.position.x = newPosition.x;
+    }
+
+    // Handle collision detection - try moving on y-axis
+    if ( this.isValidPosition( newPosition.y, player.position.x ) )
+    {
+      player.position.y = newPosition.y;
+    }
+  }
+
+  /**
+   * Check if a position is valid (not colliding with walls)
+   */
+  private isValidPosition ( y: number, x: number ): boolean
+  {
+    const mapY = Math.floor( y );
+    const mapX = Math.floor( x );
+
+    // Check map bounds
+    if ( mapY < 0 || mapY >= this.worldMap.length || mapX < 0 || mapX >= this.worldMap[ 0 ].length )
+    {
+      return false;
+    }
+
+    return this.worldMap[ mapY ][ mapX ] === 0;
+  }
+
+  /**
+   * Rotate the player and camera plane
+   */
+  rotate ( player: Player, angle: number ): void
+  {
+    const cosAngle = Math.cos( angle );
+    const sinAngle = Math.sin( angle );
+
+    // Rotate direction vector
+    const oldDirectionX = player.direction.x;
+    player.direction.x = player.direction.x * cosAngle - player.direction.y * sinAngle;
+    player.direction.y = oldDirectionX * sinAngle + player.direction.y * cosAngle;
+
+    // Rotate camera plane
+    const oldPlaneX = player.plane.x;
+    player.plane.x = player.plane.x * cosAngle - player.plane.y * sinAngle;
+    player.plane.y = oldPlaneX * sinAngle + player.plane.y * cosAngle;
+  }
+
+  /**
+   * Handle field of view changes
+   */
+  handleFieldOfView ( player: Player ): void
+  {
+    if ( this.isAnyKeyPressed( MOVEMENT_KEYS.INCREASE_FOV ) )
+    {
+      this.adjustFOV( player, FOV_CHANGE_RATE );
+    }
+
+    if ( this.isAnyKeyPressed( MOVEMENT_KEYS.DECREASE_FOV ) )
+    {
+      this.adjustFOV( player, -FOV_CHANGE_RATE );
+    }
+  }
+
+  /**
+   * Adjust field of view while maintaining aspect ratio
+   */
+  private adjustFOV ( player: Player, amount: number ): void
+  {
+    const currentFOV = player.plane.y;
+    const targetFOV = amount > 0
+      ? Math.min( currentFOV + amount, MAX_FOV )
+      : Math.max( currentFOV + amount, MIN_FOV );
+
+    // Only process if there's an actual change
+    if ( targetFOV !== currentFOV )
+    {
+      const ratio = Math.abs( player.plane.x / player.plane.y );
+      player.plane.y = targetFOV;
+      player.plane.x = targetFOV * ratio * Math.sign( player.plane.x );
     }
   }
 }

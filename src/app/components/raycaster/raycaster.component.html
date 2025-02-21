@@ -2,11 +2,12 @@
     <div class="demo-header" @fadeIn>
         <h1>RAYCASTER ANGULAR DEMO</h1>
         <p>A modern take on classic rendering technique</p>
+        <div class="fps-counter" [class.low-fps]="displayFps < 30">FPS: {{ displayFps }}</div>
     </div>
 
     <div class="render-sections" @fadeIn>
         <div class="render-section">
-            <div class="fps-counter" [class.low-fps]="displayFps < 30">FPS: {{ displayFps }}</div>
+            <div class="view-label">2.5D View</div>
             <canvas #renderingCanvas></canvas>
         </div>
 
@@ -19,38 +20,51 @@
 
 
     <div class="controls" @fadeIn>
-
         <div class="controls-wrapper">
-            <h3>Movement Controls</h3>
             <div class="control-group">
-                <div class="key-layout">
+                <h3>Map Generator</h3>
+                <div class="key-layout map-controls">
                     <div class="key-row">
-                        <kbd>W</kbd>
-                    </div>
-                    <div class="key-row">
-                        <kbd>A</kbd>
-                        <kbd>S</kbd>
-                        <kbd>D</kbd>
-                    </div>
-                </div>
-
-                <div class="divider">OR</div>
-
-                <div class="key-layout">
-                    <div class="key-row">
-                        <kbd>↑</kbd>
-                    </div>
-                    <div class="key-row">
-                        <kbd>←</kbd>
-                        <kbd>↓</kbd>
-                        <kbd>→</kbd>
+                        <button class="map-btn" (click)="generateNewWorld('recursive')">Maze</button>
+                        <button class="map-btn" (click)="generateNewWorld('dfs')">Labyrinth</button>
+                        <button class="map-btn" (click)="generateNewWorld('cellular')">Cavern</button>
+                        <button class="map-btn" (click)="generateNewWorld('rooms')">Rooms</button>
+                        <button class="map-btn" (click)="resetToDefaultMap()">Default</button>
                     </div>
                 </div>
             </div>
 
-
-            <h3>Field of View</h3>
             <div class="control-group">
+                <h3>Movement Controls</h3>
+                <div class="movement-controls">
+                    <div class="key-layout">
+                        <div class="key-row">
+                            <kbd>W</kbd>
+                        </div>
+                        <div class="key-row">
+                            <kbd>A</kbd>
+                            <kbd>S</kbd>
+                            <kbd>D</kbd>
+                        </div>
+                    </div>
+
+                    <div class="divider text-center">OR</div>
+
+                    <div class="key-layout">
+                        <div class="key-row">
+                            <kbd>↑</kbd>
+                        </div>
+                        <div class="key-row">
+                            <kbd>←</kbd>
+                            <kbd>↓</kbd>
+                            <kbd>→</kbd>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Field of View</h3>
                 <div class="key-layout">
                     <div class="key-row">
                         <kbd>Q</kbd>
@@ -61,6 +75,6 @@
                 </div>
             </div>
         </div>
-
     </div>
+
 </div>

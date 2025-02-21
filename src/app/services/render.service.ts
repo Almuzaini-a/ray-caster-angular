@@ -4,133 +4,213 @@ import { RenderingSurface } from '../interfaces/rendering-surface.interface';
 import { Player } from '../interfaces/player.interface';
 import { WallColor } from '../interfaces/wall-color.interface';
 import { Vector } from '../interfaces/vector.interface';
-import { WORLD_MAP } from '../constants/world-map.constant';
+import { WorldMapService } from './world-map.service';
+
+// Color constants
+const CEILING_COLOR = { r: 135, g: 206, b: 235 };
+const FLOOR_COLOR = { r: 128, g: 128, b: 128 };
+
+// Raycasting parameters
+interface RaycastResult
+{
+  distance: number;
+  mapPosition: Vector;
+  side: number;
+}
 
 @Injectable( {
   providedIn: 'root'
 } )
 export class RenderService
 {
-  constructor ( private wallColorService: WallColorService ) { }
+  constructor (
+    private wallColorService: WallColorService,
+    private worldMapService: WorldMapService
+  ) { }
 
+  get worldMap ()
+  {
+    return this.worldMapService.getMap();
+  }
+
+  /**
+   * Main method to cast rays and render the scene
+   */
   castRays ( renderingSurface: RenderingSurface, player: Player ): void
   {
     if ( !renderingSurface.context ) return;
 
-    const buffer: ImageData = renderingSurface.context.createImageData(
-      renderingSurface.width,
-      renderingSurface.height
-    );
+    const { width, height } = renderingSurface;
+    const buffer: ImageData = renderingSurface.context.createImageData( width, height );
 
-    for ( let column: number = 0; column < renderingSurface.width; ++column )
+    for ( let column = 0; column < width; ++column )
     {
-      const cameraX: number = 2 * column / renderingSurface.width - 1;
+      // Calculate ray position and direction
+      const cameraX = 2 * column / width - 1;
       const rayDirection: Vector = {
         x: player.direction.x + player.plane.x * cameraX,
         y: player.direction.y + player.plane.y * cameraX
       };
 
-      let mapPosition: Vector = {
-        x: Math.floor( player.position.x ),
-        y: Math.floor( player.position.y )
-      };
+      // Perform the raycast
+      const rayCastResult = this.performRaycast( player.position, rayDirection );
 
-      const deltaDistance: Vector = {
-        x: Math.abs( 1 / rayDirection.x ),
-        y: Math.abs( 1 / rayDirection.y )
-      };
-      let perpendicularWallDistance;
+      // Calculate wall height and vertical draw coordinates
+      const lineHeight = Math.floor( height / rayCastResult.distance );
+      const drawStart = Math.max( 0, Math.floor( -lineHeight / 2 + height / 2 ) );
+      const drawEnd = Math.min( height - 1, Math.floor( lineHeight / 2 + height / 2 ) );
 
-      const step: Vector = {
-        x: rayDirection.x < 0 ? -1 : 1,
-        y: rayDirection.y < 0 ? -1 : 1
-      };
+      // Get wall color based on hit position
+      const wallType = this.worldMap[ rayCastResult.mapPosition.y ][ rayCastResult.mapPosition.x ];
+      const color = this.wallColorService.getWallColor( wallType, rayCastResult.side );
 
-      const sideDistance = {
-        x: rayDirection.x < 0
-          ? ( player.position.x - mapPosition.x ) * deltaDistance.x
-          : ( mapPosition.x + 1.0 - player.position.x ) * deltaDistance.x,
-        y: rayDirection.y < 0
-          ? ( player.position.y - mapPosition.y ) * deltaDistance.y
-          : ( mapPosition.y + 1.0 - player.position.y ) * deltaDistance.y
-      };
-
-      let hit: boolean = false;
-      let side!: number;
-
-
-      while ( !hit )
-      {
-        if ( sideDistance.x < sideDistance.y )
-        {
-          sideDistance.x += deltaDistance.x;
-          mapPosition.x += step.x;
-          side = 0;
-        }
-        else
-        {
-          sideDistance.y += deltaDistance.y;
-          mapPosition.y += step.y;
-          side = 1;
-        }
-
-        if ( WORLD_MAP[ mapPosition.y ][ mapPosition.x ] > 0 ) hit = true;
-      }
-
-      perpendicularWallDistance = side === 0
-        ? ( mapPosition.x - player.position.x + ( 1 - step.x ) / 2 ) / rayDirection.x
-        : ( mapPosition.y - player.position.y + ( 1 - step.y ) / 2 ) / rayDirection.y;
-
-      const lineHeight: number = Math.floor( renderingSurface.height / perpendicularWallDistance );
-
-      const drawStart: number = Math.max( 0, Math.floor( -lineHeight / 2 + renderingSurface.height / 2 ) );
-      const drawEnd: number = Math.min(
-        renderingSurface.height - 1,
-        Math.floor( lineHeight / 2 + renderingSurface.height / 2 )
-      );
-
-      const wallType: number = WORLD_MAP[ mapPosition.x ][ mapPosition.y ];
-      const color: WallColor = this.wallColorService.getWallColor( wallType, side );
-
+      // Draw the vertical line for this column
       this.drawVerticalLine( buffer, column, drawStart, drawEnd, color, renderingSurface );
     }
 
     renderingSurface.context.putImageData( buffer, 0, 0 );
   }
 
-  drawVerticalLine ( buffer: ImageData, x: number, drawStart: number, drawEnd: number,
-    color: WallColor, renderingSurface: RenderingSurface ): void
+  /**
+   * Perform the raycast and return hit information
+   */
+  private performRaycast ( playerPosition: Vector, rayDirection: Vector ): RaycastResult
+  {
+    // Initial mapPosition (which map tile the player is in)
+    const mapPosition: Vector = {
+      x: Math.floor( playerPosition.x ),
+      y: Math.floor( playerPosition.y )
+    };
+
+    // Calculate delta distance (distance to next x or y side)
+    const deltaDistance: Vector = {
+      x: Math.abs( 1 / rayDirection.x ),
+      y: Math.abs( 1 / rayDirection.y )
+    };
+
+    // Determine step direction and initial side distance
+    const step: Vector = {
+      x: rayDirection.x < 0 ? -1 : 1,
+      y: rayDirection.y < 0 ? -1 : 1
+    };
+
+    const sideDistance = {
+      x: rayDirection.x < 0
+        ? ( playerPosition.x - mapPosition.x ) * deltaDistance.x
+        : ( mapPosition.x + 1.0 - playerPosition.x ) * deltaDistance.x,
+      y: rayDirection.y < 0
+        ? ( playerPosition.y - mapPosition.y ) * deltaDistance.y
+        : ( mapPosition.y + 1.0 - playerPosition.y ) * deltaDistance.y
+    };
+
+    // DDA algorithm
+    let hit = false;
+    let side = 0;
+
+    while ( !hit )
+    {
+      // Jump to next map square in x or y direction
+      if ( sideDistance.x < sideDistance.y )
+      {
+        sideDistance.x += deltaDistance.x;
+        mapPosition.x += step.x;
+        side = 0;
+      } else
+      {
+        sideDistance.y += deltaDistance.y;
+        mapPosition.y += step.y;
+        side = 1;
+      }
+
+      // Check if ray has hit a wall
+      if ( this.worldMap[ mapPosition.y ][ mapPosition.x ] > 0 )
+      {
+        hit = true;
+      }
+    }
+
+    // Calculate perpendicular distance to the wall to avoid fisheye effect
+    const perpendicularDistance = side === 0
+      ? ( mapPosition.x - playerPosition.x + ( 1 - step.x ) / 2 ) / rayDirection.x
+      : ( mapPosition.y - playerPosition.y + ( 1 - step.y ) / 2 ) / rayDirection.y;
+
+    return {
+      distance: perpendicularDistance,
+      mapPosition,
+      side
+    };
+  }
+
+  /**
+   * Draw a vertical line in the buffer (ceiling, wall, floor)
+   */
+  drawVerticalLine (
+    buffer: ImageData,
+    x: number,
+    drawStart: number,
+    drawEnd: number,
+    color: WallColor,
+    renderingSurface: RenderingSurface
+  ): void
   {
     const bytesPerPixel = renderingSurface.bytesPerPixel;
+    const width = renderingSurface.width;
+    const height = renderingSurface.height;
 
-    // ceiling
-    for ( let y = 0; y < drawStart; y++ )
-    {
-      const index = ( y * renderingSurface.width + x ) * bytesPerPixel;
-      buffer.data[ index ] = 135;     // R
-      buffer.data[ index + 1 ] = 206; // G
-      buffer.data[ index + 2 ] = 235; // B
-      buffer.data[ index + 3 ] = 255; // A
-    }
+    // Draw ceiling (0 to drawStart)
+    this.drawVerticalSection(
+      buffer,
+      x,
+      0,
+      drawStart,
+      CEILING_COLOR,
+      width,
+      bytesPerPixel
+    );
 
-    // wall
-    for ( let y = drawStart; y <= drawEnd; y++ )
-    {
-      const index = ( y * renderingSurface.width + x ) * bytesPerPixel;
-      buffer.data[ index ] = color.r;
-      buffer.data[ index + 1 ] = color.g;
-      buffer.data[ index + 2 ] = color.b;
-      buffer.data[ index + 3 ] = 255;
-    }
+    // Draw wall (drawStart to drawEnd)
+    this.drawVerticalSection(
+      buffer,
+      x,
+      drawStart,
+      drawEnd + 1,
+      color,
+      width,
+      bytesPerPixel
+    );
 
-    // floor
-    for ( let y = drawEnd + 1; y < renderingSurface.height; y++ )
+    // Draw floor (drawEnd to bottom)
+    this.drawVerticalSection(
+      buffer,
+      x,
+      drawEnd + 1,
+      height,
+      FLOOR_COLOR,
+      width,
+      bytesPerPixel
+    );
+  }
+
+  /**
+   * Draw a vertical section with a specific color
+   */
+  private drawVerticalSection (
+    buffer: ImageData,
+    x: number,
+    yStart: number,
+    yEnd: number,
+    color: WallColor,
+    width: number,
+    bytesPerPixel: number
+  ): void
+  {
+    for ( let y = yStart; y < yEnd; y++ )
     {
-      const index = ( y * renderingSurface.width + x ) * bytesPerPixel;
-      buffer.data[ index ] = 128;     // R
-      buffer.data[ index + 1 ] = 128; // G
-      buffer.data[ index + 2 ] = 128; // B
-      buffer.data[ index + 3 ] = 255; // A
+      const index = ( y * width + x ) * bytesPerPixel;
+      buffer.data[ index ] = color.r;      // R
+      buffer.data[ index + 1 ] = color.g;  // G
+      buffer.data[ index + 2 ] = color.b;  // B
+      buffer.data[ index + 3 ] = 255;      // A
     }
   }
 
